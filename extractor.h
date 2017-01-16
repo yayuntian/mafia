@@ -20,6 +20,8 @@
 #define ENR_UPDATE 3
 #define ENR_ADD    4
 
+#include <stdint.h>
+
 struct enrichee {
     int orig_name_len;
     const char *orig_name;
@@ -54,6 +56,6 @@ int init();
 int ip_enricher(struct enrichee *enrichee__, int mode);
 int ua_enricher(struct enrichee *enrichee__, int mode);
 int time_enricher(struct enrichee *enrichee__, int mode);
-void combine_enrichee(const char *buf, char *result);
+void combine_enrichee(const char *buf, char *result, uint64_t ts0);
 
 #endif // MAFIA_EXTRACTOR_H

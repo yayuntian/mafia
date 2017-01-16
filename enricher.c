@@ -83,7 +83,7 @@ int time_enricher(struct enrichee *enrichee__, int mode) {
 }
 
 
-void combine_enrichee(const char *buf, char *result) {
+void combine_enrichee(const char *buf, char *result, uint64_t ts0) {
     int i;
     int offset_buf = 0;
     int offset_result = 0;
@@ -91,11 +91,11 @@ void combine_enrichee(const char *buf, char *result) {
     const char *next_clean_ptr;
     int next_clean_len;
 
+    snprintf(result, MAX_PAYLOAD_SIZE, "{\"mafia_ts0\":%ld,", ts0);
 
     // scan and add item to json header
     int flag_add = 0;
-    result[0] = '{';
-    offset_result += 1;
+    offset_result += strlen(result);
     for (i = 0; i < MAX_ENRICHEE; i++) {
         if (enrichees[i].use == 1 && enrichees[i].mode == ENR_ADD) {
             strncpy(result + offset_result, enrichees[i].enriched_value,

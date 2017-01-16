@@ -74,11 +74,16 @@ void payload_callback(rd_kafka_message_t *rkmessage) {
         return;
     }
 
+    struct timeval mafia_ts0;
     if (kconf.skip >= 2) {
         strncpy(result, buf, buf_len);
     } else {
+        gettimeofday(&mafia_ts0, NULL);
+
+        uint64_t ts0 = mafia_ts0.tv_sec * 1000000 + mafia_ts0.tv_usec;
+
         extract(buf, buf + buf_len);
-        combine_enrichee(buf, result);
+        combine_enrichee(buf, result, ts0);
     }
 
     log(KLOG_DEBUG, "%s\n", result);
