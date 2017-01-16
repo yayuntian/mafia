@@ -15,6 +15,11 @@
 #define unlikely(x) (x)
 #endif
 
+#define ENR_IGNORE 1
+#define ENR_DELETE 2
+#define ENR_UPDATE 3
+#define ENR_ADD    4
+
 struct enrichee {
     int orig_name_len;
     const char *orig_name;
@@ -26,11 +31,13 @@ struct enrichee {
     char *enriched_value;
 
     int use;
+    int mode;
 };
 
-typedef int (*enricher)(struct enrichee *enrichee__);
+typedef int (*enricher)(struct enrichee *enrichee__, int mode);
 
 struct interested_pair {
+    int mode;
     int name_len;
     char *name;
     enricher enricher__;
@@ -40,12 +47,13 @@ struct interested_pair {
 extern struct enrichee enrichees[MAX_ENRICHEE];
 
 int extract(const char *buf, const char *buf_end);
-int register_enricher(const char *interested_name, enricher enricher__);
+int register_enricher(const char *interested_name, int mode, enricher enricher__);
 
 
 int init();
-int ip_enricher(struct enrichee *enrichee__);
-int ua_enricher(struct enrichee *enrichee__);
+int ip_enricher(struct enrichee *enrichee__, int mode);
+int ua_enricher(struct enrichee *enrichee__, int mode);
+int time_enricher(struct enrichee *enrichee__, int mode);
 void combine_enrichee(const char *buf, char *result);
 
 #endif // MAFIA_EXTRACTOR_H

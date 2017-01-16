@@ -68,9 +68,9 @@ void BenchmarkJson(const char *strJson, int loop, int func) {
     init();
     ipwrapper_init();
     if (func == 1) {
-        register_enricher("src_ip", ip_enricher);
-        register_enricher("dst_ip", ip_enricher);
-        register_enricher("user_agent", ua_enricher);
+        register_enricher("src_ip", ENR_UPDATE, ip_enricher);
+        register_enricher("dst_ip", ENR_UPDATE, ip_enricher);
+        register_enricher("user_agent", ENR_UPDATE, ua_enricher);
     }
 
     gettimeofday(&start, NULL);

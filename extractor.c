@@ -9,7 +9,7 @@ static struct interested_pair interested_pairs[MAX_INTERESTED_PAIRS];
 static int num_interested_pairs = 0;
 
 
-int register_enricher(const char *interested_name, enricher enricher__) {
+int register_enricher(const char *interested_name, int mode, enricher enricher__) {
     int name_len = strlen(interested_name);
     // not include trailing \0
     interested_pairs[num_interested_pairs].name_len = name_len;
@@ -17,6 +17,7 @@ int register_enricher(const char *interested_name, enricher enricher__) {
     // include trailing \0
     strncpy(interested_pairs[num_interested_pairs].name, interested_name, name_len + 1);
     interested_pairs[num_interested_pairs].enricher__ = enricher__;
+    interested_pairs[num_interested_pairs].mode = mode;
     num_interested_pairs++;
     return 0;
 }
@@ -142,12 +143,13 @@ int extract(const char *buf, const char *buf_end) {
                                     }
                                 }
                                 enrichees[num_enrichees].use = 1;
+                                enrichees[num_enrichees].mode = interested->mode;
                                 enrichees[num_enrichees].orig_value = prev_delimiter + prefix_space + 1;
                                 enrichees[num_enrichees].orig_value_len =
                                     pos - suffix_space - enrichees[num_enrichees].orig_value;
                                 //printf("The value is: %.*s\n", enrichees[num_enrichees].orig_value_len,
                                 // enrichees[num_enrichees].orig_value);
-                                interested->enricher__(&enrichees[num_enrichees]);
+                                interested->enricher__(&enrichees[num_enrichees], interested->mode);
                                 num_enrichees++;
                                 interested = NULL;
                                 is_interested = 0;

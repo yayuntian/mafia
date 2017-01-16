@@ -127,7 +127,7 @@ struct kafkaConf kconf = {
     .msg_cnt = -1,
     .skip = 0,
     .filename = NULL,
-    .verbosity = KLOG_INFO,
+    .verbosity = KLOG_DEBUG,
     .partition = RD_KAFKA_PARTITION_UA,
     .brokers = "localhost:9092",
     .group = "rdkafka_consumer_mafia",
@@ -241,9 +241,12 @@ int main(int argc, char **argv) {
     ipwrapper_init();
 
     if (kconf.skip < 1) {
-        register_enricher("src_ip", ip_enricher);
-        register_enricher("dst_ip", ip_enricher);
-        register_enricher("user_agent", ua_enricher);
+        // update
+        register_enricher("src_ip", ENR_UPDATE, ip_enricher);
+        register_enricher("dst_ip", ENR_UPDATE, ip_enricher);
+        register_enricher("user_agent", ENR_UPDATE, ua_enricher);
+        // add new item
+        register_enricher("ts", ENR_ADD, time_enricher);
     }
 
     if (kconf.filename != NULL) {
