@@ -74,17 +74,32 @@ void payload_callback(rd_kafka_message_t *rkmessage) {
         return;
     }
 
-    struct timeval mafia_ts0;
+    struct timeval mafia_ts0, mafia_ts1;
+    uint64_t ts0, ts1;
+    gettimeofday(&mafia_ts0, NULL);
+    ts0 = mafia_ts0.tv_sec * 1000000 + mafia_ts0.tv_usec;
+    snprintf(result, MAX_PAYLOAD_SIZE, "{\"mafia_ts0\":%ld,", ts0);
+
+    int offset = buf_len;
     if (kconf.skip >= 2) {
         strncpy(result, buf, buf_len);
     } else {
-        gettimeofday(&mafia_ts0, NULL);
-
-        uint64_t ts0 = mafia_ts0.tv_sec * 1000000 + mafia_ts0.tv_usec;
-
         extract(buf, buf + buf_len);
-        combine_enrichee(buf, result, ts0);
+        offset = combine_enrichee(buf, result);
     }
+
+    // process "a":b,}
+    if (result[offset - 1] == '}' && result[offset - 2] == ',') {
+        offset -= 2;
+    } else {
+        offset -= 1;
+    }
+
+    gettimeofday(&mafia_ts1, NULL);
+    ts1 = mafia_ts1.tv_sec * 1000000 + mafia_ts1.tv_usec;
+    snprintf(result + offset, MAX_PAYLOAD_SIZE - offset,
+             ",\"mafia_ts1\":%ld, \"mafia_latency_usec\":%ld}",
+             ts1, ts1 - ts0);
 
     log(KLOG_DEBUG, "%s\n", result);
     write_data_log(result, strlen(result));

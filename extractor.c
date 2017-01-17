@@ -149,7 +149,7 @@ int extract(const char *buf, const char *buf_end) {
                                     pos - suffix_space - enrichees[num_enrichees].orig_value;
                                 //printf("The value is: %.*s\n", enrichees[num_enrichees].orig_value_len,
                                 // enrichees[num_enrichees].orig_value);
-                                interested->enricher__(&enrichees[num_enrichees], interested->mode);
+                                interested->enricher__(&enrichees[num_enrichees]);
                                 num_enrichees++;
                                 interested = NULL;
                                 is_interested = 0;

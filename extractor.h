@@ -36,7 +36,7 @@ struct enrichee {
     int mode;
 };
 
-typedef int (*enricher)(struct enrichee *enrichee__, int mode);
+typedef int (*enricher)(struct enrichee *enrichee__);
 
 struct interested_pair {
     int mode;
@@ -53,9 +53,10 @@ int register_enricher(const char *interested_name, int mode, enricher enricher__
 
 
 int init();
-int ip_enricher(struct enrichee *enrichee__, int mode);
-int ua_enricher(struct enrichee *enrichee__, int mode);
-int time_enricher(struct enrichee *enrichee__, int mode);
-void combine_enrichee(const char *buf, char *result, uint64_t ts0);
+int ip_enricher(struct enrichee *enrichee__);
+int ua_enricher(struct enrichee *enrichee__);
+int time_enricher(struct enrichee *enrichee__);
+int kafka_enricher(struct enrichee *enrichee__);
+int combine_enrichee(const char *buf, char *result);
 
 #endif // MAFIA_EXTRACTOR_H
