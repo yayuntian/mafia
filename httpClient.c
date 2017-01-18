@@ -9,73 +9,18 @@
 /* libcurl (http://curl.haxx.se/libcurl/c) */
 #include <curl/curl.h>
 
-static char *post_data = "{\n"
-        "    \"dawn_ts0\": 1483468791574000,\n"
-        "    \"guid\": \"31\",\n"
-        "    \"device_id\": \"79bf7e53-d92f-5cdd-a7c3-3e9e97685c2c\",\n"
-        "    \"probe\": {\n"
-        "        \"name\": \"cloudsensor\"\n"
-        "    },\n"
-        "    \"appname\": \"cloudsensor\",\n"
-        "    \"type\": \"tcp\",\n"
-        "    \"kafka\": {\n"
-        "        \"topic\": \"cloudsensor\"\n"
-        "    },\n"
-        "    \"aggregate_count\": 1,\n"
-        "    \"tcp\": {\n"
-        "        \"src_isp\": 0,\n"
-        "        \"l4_proto\": 6,\n"
-        "        \"out_bytes\": 0,\n"
-        "        \"dst_port\": 3306,\n"
-        "        \"retransmitted_out_fin_pkts\": 0,\n"
-        "        \"client_latency_sec\": 0,\n"
-        "        \"window_zero_size\": 0,\n"
-        "        \"src_ipv4\": 178257969,\n"
-        "        \"topic\": \"tcp\",\n"
-        "        \"in_pkts\": 0,\n"
-        "        \"src_region\": 0,\n"
-        "        \"retransmitted_out_payload_pkts\": 0,\n"
-        "        \"dst_ipv4\": 178808905,\n"
-        "        \"ts\": 1483468791,\n"
-        "        \"final_status\": 3,\n"
-        "        \"retransmitted_in_syn_pkts\": 0,\n"
-        "        \"src_ip\": 178257969,\n"
-        "        \"server_latency_sec\": 0,\n"
-        "        \"l4_protocol\": 6,\n"
-        "        \"bytes_in\": 0,\n"
-        "        \"src_port\": 57366,\n"
-        "        \"retransmitted_out_syn_pkts\": 0,\n"
-        "        \"retransmitted_in_ack_pkts\": 0,\n"
-        "        \"out_pkts\": 0,\n"
-        "        \"device_id\": \"79bf7e53-d92f-5cdd-a7c3-3e9e97685c2c\",\n"
-        "        \"guid\": \"31\",\n"
-        "        \"bytes_out\": 0,\n"
-        "        \"retransmitted_in_payload_pkts\": 0,\n"
-        "        \"dst_ip\": 178808905,\n"
-        "        \"in_bytes\": 0,\n"
-        "        \"retransmitted_out_ack_pkts\": 0,\n"
-        "        \"server_latency_usec\": 3314,\n"
-        "        \"client_latency_usec\": 3740006,\n"
-        "        \"retransmitted_in_fin_pkts\": 0\n"
-        "    },\n"
-        "    \"probe_ts\": 1483468791,\n"
-        "    \"dawn_ts1\": 1483468791574000,\n"
-        "    \"topic\": \"cloudsensor\"\n"
-        "}";
-
-
-
-//int i = 0;
-//struct timeval start, end;
-//gettimeofday(&start, NULL);
-//for (i = 0; i < 10000; i++) {
-//
-//}
-//gettimeofday(&end, NULL);
-//long time_cost = ((end.tv_sec - start.tv_sec) * 1000000 + \
-//            end.tv_usec - start.tv_usec);
-//printf("cost time: %ld us, %.2f pps\n", time_cost, 10000 / (time_cost * 1.0) * 1000000);
-
+static char *post_data = "{\"dawn_ts0\":1.483470142498e+15,\"guid\""
+        ":\"4a859fff6e5c4521aab187eee1cfceb8\",\"device_id\":\"26aae27e-ffe5-5fc8-9281-f8"
+        "2cf4e288ee\",\"probe\":{\"name\":\"cloudsensor\",\"hostname\":\"iZbp1gd3xwhcctm4ax2ruwZ"
+        "\"},\"appname\":\"cloudsensor\",\"type\":\"http\",\"kafka\":{\"topic\":\"cloudsensor\"},\"ag"
+        "gregate_count\":1,\"http\":{\"latency_sec\":0,\"in_bytes\":502,\"status_code\":200,"
+        "\"out_bytes\":8625,\"dst_port\":80,\"src_ip\":2008838371,\"xff\":\"\",\"url\":\"\\/PHP"
+        "\\/index.html\",\"refer\":\"\",\"l4_protocol\":\"tcp\",\"in_pkts\":1,\"http_method\":1"
+        ",\"out_pkts\":6,\"user_agent\":\"Mozilla\\/5.0 (Macintosh; Intel Mac OS X 10_10_3"
+        ") AppleWebKit\\/537.36 (KHTML, like Gecko) Chrome\\/43.0.2357.130 Safari\\/537.36 Jia"
+        "nKongBao Monitor 1.1\",\"dst_ip\":1916214160,\"https_flag\":0,\"src_port\":43974,\""
+        "latency_usec\":527491,\"host\":\"114.55.27.144\",\"url_query\":\"\"},\"probe_ts\":14"
+        "83470142,\"dawn_ts1\":1.483470142498e+15,\"topic\":\"cloudsensor\"}";
 
 size_t curl_callback(void *contents, size_t size, size_t nmemb, void *userp) {
     return size * nmemb;
@@ -86,7 +31,7 @@ int main(int argc, char *argv[]) {
     CURL *curl;
     CURLcode rcode;
 
-    char *url = "http://192.168.10.212:9200/cc-2017.01.18/test";
+    char *url = "http://192.168.10.52:9200/_bulk";
 
     if ((curl = curl_easy_init()) == NULL) {
         fprintf(stderr, "ERROR: Failed to create curl\n");
@@ -113,15 +58,40 @@ int main(int argc, char *argv[]) {
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
 
 
-    /* specify data to POST to server */
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, post_data);
-    rcode = curl_easy_perform(curl);
+    int i = 0;
+    struct timeval start, end;
+    int loop = 1;
+    int len = strlen(post_data);
 
-    if (rcode != CURLE_OK) {
-        fprintf(stderr, "ERROR: Failed to request url (%s) - curl said: %s",
-                url, curl_easy_strerror(rcode));
-        exit(2);
+    const char *index = "{\"create\":{\"_index\":\"cc-test-2017.01.18\",\"_type\":\"http\"}}";
+    char *p = (char *) calloc(1, 64 * 1024 * 1024);
+    if (p == NULL) {
+        printf("malloc failed\n");
+        exit(1);
     }
+
+    snprintf(p, 64 * 1024 * 1024, "%s\n%s\n", index, post_data1);
+
+    printf("%s", p);
+
+    gettimeofday(&start, NULL);
+    for (i = 0; i < loop; i++) {
+
+        /* specify data to POST to server */
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, p);
+        rcode = curl_easy_perform(curl);
+
+        if (rcode != CURLE_OK) {
+            fprintf(stderr, "ERROR: Failed to request url (%s) - curl said: %s",
+                    url, curl_easy_strerror(rcode));
+            exit(2);
+        }
+
+    }
+    gettimeofday(&end, NULL);
+    long time_cost = ((end.tv_sec - start.tv_sec) * 1000000 + \
+                end.tv_usec - start.tv_usec);
+    printf("cost time: %ld us, %.2f pps\n", time_cost, loop / (time_cost * 1.0) * 1000000);
 
     curl_easy_cleanup(curl);
     curl_slist_free_all(headers);
