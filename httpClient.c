@@ -1,4 +1,3 @@
-/* standard includes */
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
@@ -6,7 +5,6 @@
 #include <errno.h>
 #include <time.h>
 
-/* libcurl (http://curl.haxx.se/libcurl/c) */
 #include <curl/curl.h>
 
 static char *post_data = "{\"dawn_ts0\":1.483470142498e+15,\"guid\""
@@ -14,10 +12,10 @@ static char *post_data = "{\"dawn_ts0\":1.483470142498e+15,\"guid\""
         "2cf4e288ee\",\"probe\":{\"name\":\"cloudsensor\",\"hostname\":\"iZbp1gd3xwhcctm4ax2ruwZ"
         "\"},\"appname\":\"cloudsensor\",\"type\":\"http\",\"kafka\":{\"topic\":\"cloudsensor\"},\"ag"
         "gregate_count\":1,\"http\":{\"latency_sec\":0,\"in_bytes\":502,\"status_code\":200,"
-        "\"out_bytes\":8625,\"dst_port\":80,\"src_ip\":2008838371,\"xff\":\"\",\"url\":\"\\/PHP"
-        "\\/index.html\",\"refer\":\"\",\"l4_protocol\":\"tcp\",\"in_pkts\":1,\"http_method\":1"
-        ",\"out_pkts\":6,\"user_agent\":\"Mozilla\\/5.0 (Macintosh; Intel Mac OS X 10_10_3"
-        ") AppleWebKit\\/537.36 (KHTML, like Gecko) Chrome\\/43.0.2357.130 Safari\\/537.36 Jia"
+        "\"out_bytes\":8625,\"dst_port\":80,\"src_ip\":2008838371,\"xff\":\"\",\"url\":\"/PHP"
+        "/index.html\",\"refer\":\"\",\"l4_protocol\":\"tcp\",\"in_pkts\":1,\"http_method\":1"
+        ",\"out_pkts\":6,\"user_agent\":\"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_3"
+        ") AppleWebKit/537.36 (KHTML, like Gecko) Chrome/43.0.2357.130 Safari/537.36 Jia"
         "nKongBao Monitor 1.1\",\"dst_ip\":1916214160,\"https_flag\":0,\"src_port\":43974,\""
         "latency_usec\":527491,\"host\":\"114.55.27.144\",\"url_query\":\"\"},\"probe_ts\":14"
         "83470142,\"dawn_ts1\":1.483470142498e+15,\"topic\":\"cloudsensor\"}";
@@ -26,12 +24,13 @@ size_t curl_callback(void *contents, size_t size, size_t nmemb, void *userp) {
     return size * nmemb;
 }
 
+#define MAX_SIZE (64 * 1024 * 1024)
 
 int main(int argc, char *argv[]) {
     CURL *curl;
     CURLcode rcode;
 
-    char *url = "http://192.168.10.52:9200/_bulk";
+    char *url = "http://192.168.10.212:9200/_bulk";
 
     if ((curl = curl_easy_init()) == NULL) {
         fprintf(stderr, "ERROR: Failed to create curl\n");
@@ -49,52 +48,59 @@ int main(int argc, char *argv[]) {
     curl_easy_setopt(curl, CURLOPT_TCP_KEEPIDLE, 120L);
     curl_easy_setopt(curl, CURLOPT_TCP_KEEPINTVL, 60L);
 
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 30L);
+
     /* set http user-agent */
     curl_easy_setopt(curl, CURLOPT_USERAGENT, "mafia-beta/1.0");
 
     /* set http header */
-    struct curl_slist *headers = NULL;
-    headers = curl_slist_append(headers, "Content-Type: application/json");
-    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+//    struct curl_slist *headers = NULL;
+//    headers = curl_slist_append(headers, "Content-Type: application/json");
+//    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
 
 
     int i = 0;
     struct timeval start, end;
-    int loop = 1;
+    int loop = 5;
     int len = strlen(post_data);
+    int offset = 0;
+    const char *index = "{\"create\":{\"_index\":\"cc-test-2017.01.18\",\"_type\":\"http\"}}\n";
+    int index_len = strlen(index);
+    char *p = (char *) calloc(1, MAX_SIZE);
 
-    const char *index = "{\"create\":{\"_index\":\"cc-test-2017.01.18\",\"_type\":\"http\"}}";
-    char *p = (char *) calloc(1, 64 * 1024 * 1024);
-    if (p == NULL) {
-        printf("malloc failed\n");
-        exit(1);
+    int bulk_count = 20000;
+    for (i = 0; i < bulk_count; i++) {
+        strncpy(p + offset, index, index_len);
+        offset += index_len;
+        strncpy(p + offset, post_data, len);
+        offset += len;
+        p[offset++] = '\n';
     }
 
-    snprintf(p, 64 * 1024 * 1024, "%s\n%s\n", index, post_data1);
+//    printf("%s", p);
 
-    printf("%s", p);
-
+    int count = 0;
     gettimeofday(&start, NULL);
-    for (i = 0; i < loop; i++) {
-
+//    for (i = 0; i < loop; i++) {
+    while (1) {
         /* specify data to POST to server */
         curl_easy_setopt(curl, CURLOPT_POSTFIELDS, p);
         rcode = curl_easy_perform(curl);
+        printf("%d\n", count++);
 
         if (rcode != CURLE_OK) {
-            fprintf(stderr, "ERROR: Failed to request url (%s) - curl said: %s",
+            fprintf(stderr, "ERROR: Failed to request url (%s) - curl said: %s\n",
                     url, curl_easy_strerror(rcode));
-            exit(2);
+            sleep(1);
         }
-
     }
     gettimeofday(&end, NULL);
     long time_cost = ((end.tv_sec - start.tv_sec) * 1000000 + \
                 end.tv_usec - start.tv_usec);
-    printf("cost time: %ld us, %.2f pps\n", time_cost, loop / (time_cost * 1.0) * 1000000);
+    printf("cost time: %ld us, %.2f pps\n", time_cost, loop * bulk_count / (time_cost * 1.0) * 1000000);
 
     curl_easy_cleanup(curl);
-    curl_slist_free_all(headers);
+//    curl_slist_free_all(headers);
 
     return 0;
 }
