@@ -70,7 +70,7 @@ void gen_index(const char *topic) {
     strftime(index + strlen(index), 128, "%Y.%m.%d", gmtime(&t));
 
     int ret = snprintf(bulk.data + bulk.offset, MAX_PAYLOAD_SIZE,
-             "{\"create\":{\"_index\":\"%s\",\"_type\":\"%s\"}}\n", index, bulk.type);
+             "{\"create\":{\"_index\":\"%s\",\"_type\":\"%s\"}\n", index, remove_quotes(bulk.type));
 
     bulk.offset += ret;
 }
