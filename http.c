@@ -102,10 +102,11 @@ int http_post(httpclient_t *client, char *data, int len) {
     evhttp_make_request(client->conn, requset, EVHTTP_REQ_POST, client->path);
 
     event_base_dispatch(client->base);
+
+    return 0;
 }
 
 #define BULK_COUNT 10000
-#define MAX_BULK_SIZE (64 * 1024 * 1024)
 char *gen_bulk_data(char *data, int len) {
     int i;
     int offset = 0;
@@ -138,7 +139,7 @@ long time_current_usec() {
     return time;
 }
 
-
+#if 0
 int main(int argc, char *argv[]) {
     int i;
     long start, end;
@@ -149,7 +150,6 @@ int main(int argc, char *argv[]) {
     }
 
 //    const char *url = "http://192.168.10.212:9200/_bulk";
-
     char *url = argv[1];
     httpclient_t *client = http_init(url);
 
@@ -173,3 +173,4 @@ int main(int argc, char *argv[]) {
 
     return 0;
 }
+#endif

@@ -9,15 +9,36 @@
 
 #include "wrapper.h"
 #include "extractor.h"
+#include "http.h"
 
 struct enrichee enrichees[MAX_ENRICHEE];
 
+bulk_t bulk;
 
 int init() {
     for (int i = 0; i < MAX_ENRICHEE; i++) {
         enrichees[i].enriched_value = (char *) malloc(MAX_ENRICHED_VALUE_LEN);
     }
 
+    return 0;
+}
+
+
+int type_enricher(struct enrichee *enrichee__) {
+    strncpy(bulk.type, enrichee__->orig_value, enrichee__->orig_value_len);
+    bulk.type[enrichee__->orig_value_len] = '\0';
+
+    enrichee__->orig_value_len = 0;
+    enrichee__->enriched_value_len = 0;
+    return 0;
+}
+
+int guid_enricher(struct enrichee *enrichee__) {
+    strncpy(bulk.guid, enrichee__->orig_value, enrichee__->orig_value_len);
+    bulk.guid[enrichee__->orig_value_len] = '\0';
+
+    enrichee__->orig_value_len = 0;
+    enrichee__->enriched_value_len = 0;
     return 0;
 }
 
@@ -83,10 +104,11 @@ int time_enricher(struct enrichee *enrichee__) {
 }
 
 
+// @return : enriched value length
 int combine_enrichee(const char *buf, char *result) {
     int i;
     int offset_buf = 1;
-    int offset_result = strlen(result);
+    int offset_result = 0;
 
     const char *next_clean_ptr;
     int next_clean_len;

@@ -19,7 +19,10 @@
 #define ENR_DELETE 2
 #define ENR_UPDATE 3
 #define ENR_ADD    4
+#define ENR_GET    5
 
+#include <stdio.h>
+#include <string.h>
 #include <stdint.h>
 
 struct enrichee {
@@ -57,6 +60,10 @@ int ip_enricher(struct enrichee *enrichee__);
 int ua_enricher(struct enrichee *enrichee__);
 int time_enricher(struct enrichee *enrichee__);
 int kafka_enricher(struct enrichee *enrichee__);
+
+int type_enricher(struct enrichee *enrichee__);
+int guid_enricher(struct enrichee *enrichee__);
+
 int combine_enrichee(const char *buf, char *result);
 
 #endif // MAFIA_EXTRACTOR_H

@@ -6,17 +6,28 @@
 #include <stdint.h>
 #include <getopt.h>
 #include <errno.h>
+#include <time.h>
 
 #include "extractor.h"
-#include "kafkaConsumer.h"
 #include "wrapper.h"
+#include "http.h"
+#include "kafkaConsumer.h"
+#include "utils.h"
 
 
 FILE *fp = NULL;
 static uint64_t rx_count = 0;
 
-size_t write_data_log(const char *data, size_t length) {
+static void init_bulk() {
+    bulk.data = calloc(1, MAX_BULK_SIZE);
+    if (!bulk.data) {
+        fprintf(stderr, "calloc memory failed\n");
+        exit(1);
+    }
+}
 
+
+size_t write_data_log(const char *data, size_t length) {
     char *filename = (kconf.skip == 3) ? "/dev/null" : "log.mafia";
 
     if (!fp) {
@@ -47,9 +58,23 @@ void echo_perf() {
 #endif
 
 
-void payload_callback(rd_kafka_message_t *rkmessage) {
+void gen_index(const char *topic) {
 
-    char result[MAX_PAYLOAD_SIZE] = {0,};
+    char index[128] = {0,};
+
+    snprintf(index, 128, "cc-%s-%s-", topic, remove_quotes(bulk.guid));
+    time_t t = time(NULL);
+    strftime(index + strlen(index), 128, "%Y.%m.%d", gmtime(&t));
+
+    int ret = snprintf(bulk.data + bulk.offset, MAX_PAYLOAD_SIZE,
+             "{\"create\":{\"_index\":\"%s\",\"_type\":\"%s\"}}\n", index, bulk.type);
+
+    bulk.offset += ret;
+}
+
+
+
+void payload_callback(rd_kafka_message_t *rkmessage) {
     const char *buf = (char *)rkmessage->payload;
     const int buf_len = (int)rkmessage->len;
 
@@ -78,31 +103,38 @@ void payload_callback(rd_kafka_message_t *rkmessage) {
     uint64_t ts0, ts1;
     gettimeofday(&mafia_ts0, NULL);
     ts0 = mafia_ts0.tv_sec * 1000000 + mafia_ts0.tv_usec;
-    snprintf(result, MAX_PAYLOAD_SIZE, "{\"mafia_ts0\":%ld,", ts0);
 
-    int offset = buf_len;
-    if (kconf.skip >= 2) {
-        strncpy(result, buf, buf_len);
+    // parser key-value, process
+    extract(buf, buf + buf_len);
+
+    // gen es bulk ops
+    if (kconf.filename != NULL) {
+        gen_index("readfile");
     } else {
-        extract(buf, buf + buf_len);
-        offset = combine_enrichee(buf, result);
+        gen_index(rd_kafka_topic_name(rkmessage->rkt));
     }
 
+    bulk.offset += snprintf(bulk.data + bulk.offset,
+                            MAX_PAYLOAD_SIZE, "{\"mafia_ts0\":%ld,", ts0);
+
+    bulk.offset += combine_enrichee(buf, bulk.data + bulk.offset);
+
+
     // process "a":b,}
-    if (result[offset - 1] == '}' && result[offset - 2] == ',') {
-        offset -= 2;
+    if (bulk.data[bulk.offset - 1] == '}' && bulk.data[bulk.offset - 2] == ',') {
+        bulk.offset -= 2;
     } else {
-        offset -= 1;
+        bulk.offset -= 1;
     }
 
     gettimeofday(&mafia_ts1, NULL);
     ts1 = mafia_ts1.tv_sec * 1000000 + mafia_ts1.tv_usec;
-    snprintf(result + offset, MAX_PAYLOAD_SIZE - offset,
-             ",\"mafia_ts1\":%ld, \"mafia_latency_usec\":%ld}",
+    bulk.offset += snprintf(bulk.data + bulk.offset, MAX_PAYLOAD_SIZE,
+             ",\"mafia_ts1\":%ld, \"mafia_latency_usec\":%ld}\n",
              ts1, ts1 - ts0);
 
-    log(KLOG_DEBUG, "%s\n", result);
-    write_data_log(result, strlen(result));
+    log(KLOG_DEBUG, "%s\n", bulk.data);
+    write_data_log(bulk.data, bulk.offset);
 }
 
 
@@ -259,6 +291,7 @@ int main(int argc, char **argv) {
 
     init();
     ipwrapper_init();
+    init_bulk();
 
     if (kconf.skip < 1) {
         // update
@@ -267,6 +300,10 @@ int main(int argc, char **argv) {
         register_enricher("user_agent", ENR_UPDATE, ua_enricher);
         // add new item
         register_enricher("ts", ENR_ADD, time_enricher);
+
+        // read value
+        register_enricher("type", ENR_GET, type_enricher);
+        register_enricher("guid", ENR_GET, guid_enricher);
     }
 
     if (kconf.filename != NULL) {
