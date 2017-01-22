@@ -4,8 +4,7 @@ FLAGS += -DLRU_CACHE
 CXXFLAGS += -std=c++0x $(FLAGS)
 CFLAGS += -std=c99 -msse4.2 $(FLAGS)
 
-KAFKA_LIBS = -lrdkafka
-CXXLIBS = -lboost_regex -levent
+LIBS = -lrdkafka -lboost_regex -levent -lpthread
 
 OBJS = main.o kafkaConsumer.o userAgent.o \
             operatingSystem.o bot.o \
@@ -21,7 +20,7 @@ OBJS = main.o kafkaConsumer.o userAgent.o \
 all: mafia #json_test ua_test ip_test
 
 mafia: $(OBJS)
-	$(CXX) -o $@ $(OBJS) $(CXXLIBS) $(KAFKA_LIBS)
+	$(CXX) -o $@ $(OBJS) $(LIBS)
 
 # unit test
 
@@ -30,21 +29,21 @@ JSON_OBJS = test_json.o userAgent.o \
                 browser.o extractor.o enricher.o \
                 ipLocator.o wrapper.o http.o
 json_test: $(JSON_OBJS)
-	$(CXX) -o $@ $(JSON_OBJS) $(CXXLIBS)
+	$(CXX) -o $@ $(JSON_OBJS) $(LIBS)
 
 UA_OBJS = test_ua.o userAgent.o \
                 operatingSystem.o bot.o \
                 browser.o extractor.o enricher.o \
                 ipLocator.o wrapper.o http.o
 ua_test: $(UA_OBJS)
-	$(CXX) -o $@ $(UA_OBJS) $(CXXLIBS)
+	$(CXX) -o $@ $(UA_OBJS) $(LIBS)
 
 IP_OBJS = test_ip.o userAgent.o \
                 operatingSystem.o bot.o \
                 browser.o extractor.o enricher.o \
                 ipLocator.o wrapper.o http.o
 ip_test: $(IP_OBJS)
-	$(CXX) -o $@ $(IP_OBJS) $(CXXLIBS)
+	$(CXX) -o $@ $(IP_OBJS) $(LIBS)
 
 
 .PHONY: clean

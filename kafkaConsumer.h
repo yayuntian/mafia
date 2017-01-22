@@ -21,10 +21,10 @@ typedef void (*kafka_payload_cb)(rd_kafka_message_t *rkmessage);
 struct kafkaConf {
     int run;
     int verbosity;
-    int skip;
     int64_t msg_cnt;
 
     char *filename;
+    char *out_file;
 
     char *brokers;
     char *group;
@@ -40,6 +40,8 @@ struct kafkaConf {
     rd_kafka_topic_partition_list_t *rktp;
 
     kafka_payload_cb payload_cb;
+
+    char *es_url;
 #ifdef PERF
     struct timeval start, end;
     uint64_t rx_cnt;

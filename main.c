@@ -7,6 +7,7 @@
 #include <getopt.h>
 #include <errno.h>
 #include <time.h>
+#include <pthread.h>
 
 #include "extractor.h"
 #include "wrapper.h"
@@ -24,11 +25,14 @@ static void init_bulk() {
         fprintf(stderr, "calloc memory failed\n");
         exit(1);
     }
+
+    bulk.time = 1;
+    bulk.batch = 10000;
 }
 
 
 size_t write_data_log(const char *data, size_t length) {
-    char *filename = (kconf.skip == 3) ? "/dev/null" : "log.mafia";
+    char *filename = kconf.out_file;
 
     if (!fp) {
         if ((fp = fopen(filename, "wb")) == NULL) {
@@ -37,7 +41,6 @@ size_t write_data_log(const char *data, size_t length) {
         }
     }
     size_t ret = fwrite(data, sizeof(char), length, fp);
-    fputs("\n", fp);
 
     return ret;
 }
@@ -92,20 +95,16 @@ void payload_callback(rd_kafka_message_t *rkmessage) {
         kconf.run = 0;
     }
 
-    if (buf_len > MAX_PAYLOAD_SIZE) {
-        log_err("payload size(%d) exceeds the threshold(%d)\n",
-        buf_len, MAX_PAYLOAD_SIZE);
-        write_data_log(buf, buf_len);
-        return;
-    }
-
-    struct timeval mafia_ts0, mafia_ts1;
-    uint64_t ts0, ts1;
-    gettimeofday(&mafia_ts0, NULL);
-    ts0 = mafia_ts0.tv_sec * 1000000 + mafia_ts0.tv_usec;
-
+    long ts0 = time_current_usec();
     // parser key-value, process
     extract(buf, buf + buf_len);
+
+    spinlock(&bulk.lock);
+
+    bulk.count++;
+    if (bulk.offset + MAX_PAYLOAD_SIZE > MAX_BULK_SIZE) {
+        bulk.full = 1;
+    }
 
     // gen es bulk ops
     if (kconf.filename != NULL) {
@@ -119,7 +118,6 @@ void payload_callback(rd_kafka_message_t *rkmessage) {
 
     bulk.offset += combine_enrichee(buf, bulk.data + bulk.offset);
 
-
     // process "a":b,}
     if (bulk.data[bulk.offset - 1] == '}' && bulk.data[bulk.offset - 2] == ',') {
         bulk.offset -= 2;
@@ -127,14 +125,16 @@ void payload_callback(rd_kafka_message_t *rkmessage) {
         bulk.offset -= 1;
     }
 
-    gettimeofday(&mafia_ts1, NULL);
-    ts1 = mafia_ts1.tv_sec * 1000000 + mafia_ts1.tv_usec;
+    long ts1 = time_current_usec();
     bulk.offset += snprintf(bulk.data + bulk.offset, MAX_PAYLOAD_SIZE,
              ",\"mafia_ts1\":%ld, \"mafia_latency_usec\":%ld}\n",
              ts1, ts1 - ts0);
 
+    bulk.data[bulk.offset] = '\0';
+
+    spinunlock(&bulk.lock);
+
     log(KLOG_DEBUG, "%s\n", bulk.data);
-    write_data_log(bulk.data, bulk.offset);
 }
 
 
@@ -160,6 +160,8 @@ void read_file(void)
         msg_t.len = read;
         payload_callback(&msg_t);
 
+        usleep(10 * 1000);
+
         if (kconf.run == 0) {
             break;
         }
@@ -177,13 +179,14 @@ void read_file(void)
 struct kafkaConf kconf = {
     .run = 1,
     .msg_cnt = -1,
-    .skip = 0,
     .filename = NULL,
-    .verbosity = KLOG_DEBUG,
+    .out_file = NULL,
+    .verbosity = KLOG_INFO,
     .partition = RD_KAFKA_PARTITION_UA,
     .brokers = "localhost:9092",
     .group = "rdkafka_consumer_mafia",
     .topic_count = 0,
+    .es_url = "http://localhost:9200/_bulk",
 #ifdef PERF
     .rx_byt = 0,
 #endif
@@ -204,8 +207,9 @@ static void usage(const char *argv0) {
     printf("General options:\n"
             " -g <group>      Consumer group (%s)\n"
             " -b <brokes>     Broker address (%s)\n"
+            " -u <url>        Elasticsearch url (%s)\n"
             " -f <file>       Consumer from json file\n"
-            " -s <skip>       Skip process [test]\n"
+            " -w <out-file>   Write to disk file\n"
             "                 1 - not regiest json cb, do parser, copy, write disk\n"
             "                 2 - not parser json, do copy, write disk\n"
             "                 3 - not parser json, do copy, write /dev/null\n"
@@ -216,7 +220,7 @@ static void usage(const char *argv0) {
             " -e              Exit consumer when last message\n"
             " -d              Debug mode\n"
             " -h              Show help\n",
-    kconf.group, kconf.brokers);
+    kconf.group, kconf.brokers, kconf.es_url);
 
     exit(1);
 }
@@ -228,7 +232,7 @@ static void usage(const char *argv0) {
 static void argparse (int argc, char **argv) {
     int i, opt;
 
-    while ((opt = getopt(argc, argv, "g:b:s:o:c:f:qdh")) != -1) {
+    while ((opt = getopt(argc, argv, "g:b:s:w:o:u:c:f:qdh")) != -1) {
         switch (opt) {
             case 'b':
                 kconf.brokers = optarg;
@@ -239,8 +243,11 @@ static void argparse (int argc, char **argv) {
             case 'f':
                 kconf.filename = optarg;
                 break;
-            case 's':
-                kconf.skip = atoi(optarg);
+            case 'u':
+                kconf.es_url = optarg;
+                break;
+            case 'w':
+                kconf.out_file = optarg;
                 break;
             case 'c':
                 kconf.msg_cnt = strtoll(optarg, NULL, 10);
@@ -286,6 +293,55 @@ static void argparse (int argc, char **argv) {
 }
 
 
+
+void bulk_post(void *arg) {
+    int cur_time;
+    bulk.last_time = time(NULL);
+    int send = 0;
+    int wait_count = 0;
+
+    printf("post thread start time: %d\n", bulk.last_time);
+
+    httpclient_t *client = http_init(kconf.es_url);
+
+    while (1) {
+        cur_time = time(NULL);
+        if (cur_time > bulk.last_time + bulk.time) {
+            send = 1;
+            bulk.last_time = cur_time;
+        }
+
+        if (bulk.count && (send || bulk.count > bulk.batch || bulk.full)) {
+
+            printf("post send: count: %d, time: %d, full: %d\n",
+                   bulk.count, send, bulk.full);
+            spinlock(&bulk.lock);
+
+            if (kconf.out_file) {
+                write_data_log(bulk.data, bulk.offset);
+            } else {
+                http_post(client, bulk.data, bulk.offset);
+            }
+
+            // reset bulk buffer
+            bulk.offset = 0;
+            bulk.full = 0;
+            bulk.count = 0;
+            send = 0;
+
+            spinunlock(&bulk.lock);
+        } else {
+            wait_count++;
+        }
+
+        if (wait_count > 100) {
+            sleep(1);
+        }
+    }
+}
+
+
+
 int main(int argc, char **argv) {
     argparse(argc, argv);
 
@@ -293,21 +349,30 @@ int main(int argc, char **argv) {
     ipwrapper_init();
     init_bulk();
 
-    if (kconf.skip < 1) {
-        // update
-        register_enricher("src_ip", ENR_UPDATE, ip_enricher);
-        register_enricher("dst_ip", ENR_UPDATE, ip_enricher);
-        register_enricher("user_agent", ENR_UPDATE, ua_enricher);
-        // add new item
-        register_enricher("ts", ENR_ADD, time_enricher);
-
-        // read value
-        register_enricher("type", ENR_GET, type_enricher);
-        register_enricher("guid", ENR_GET, guid_enricher);
+    pthread_t post_thread;
+    if(pthread_create(&post_thread, NULL, (void *)bulk_post, NULL)) {
+        fprintf(stderr, "Error creating post thread\n");
+        exit(1);
     }
+
+
+    // update
+    register_enricher("src_ip", ENR_UPDATE, ip_enricher);
+    register_enricher("dst_ip", ENR_UPDATE, ip_enricher);
+    register_enricher("user_agent", ENR_UPDATE, ua_enricher);
+    // add new item
+    register_enricher("ts", ENR_ADD, time_enricher);
+
+    // read value
+    register_enricher("type", ENR_GET, type_enricher);
+    register_enricher("guid", ENR_GET, guid_enricher);
+
 
     if (kconf.filename != NULL) {
         read_file();
+        // send post
+        bulk.batch = 0;
+        sleep(5);
         exit(0);
     }
 

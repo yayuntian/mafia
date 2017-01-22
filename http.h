@@ -34,8 +34,18 @@ typedef struct bulk_s {
 
     int batch;
     int time;
+    int full;
+
+    int last_time;
+
+    volatile int lock;
 } bulk_t;
 
 extern bulk_t bulk;
+
+
+httpclient_t *http_init(const char *url);
+void http_exit(httpclient_t *client);
+int http_post(httpclient_t *client, char *data, int len);
 
 #endif //MAFIA_HTTP_H
